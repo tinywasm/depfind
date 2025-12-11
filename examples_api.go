@@ -1,4 +1,4 @@
-package godepfind
+package depfind
 
 // Example of how ValidateInputForProcessing can be reused in other public APIs
 

@@ -1,4 +1,4 @@
-package godepfind_test
+package depfind
 
 import (
 	"os"
@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cdvelop/godepfind"
+	"github.com/tinywasm/depfind"
 )
 
 func TestFilePathRequirement(t *testing.T) {
@@ -49,7 +49,7 @@ func main() {
 	}
 
 	// Create godepfind instance
-	depFinder := godepfind.New(tmp)
+	depFinder := depfind.New(tmp)
 
 	mainInputFileRelativePath := "app1/main.go"
 

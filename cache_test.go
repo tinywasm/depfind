@@ -1,4 +1,4 @@
-package godepfind
+package depfind
 
 import (
 	"testing"

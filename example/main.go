@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/cdvelop/godepfind"
+	"github.com/tinywasm/depfind"
 )
 
 func main() {
@@ -16,7 +16,7 @@ func main() {
 	}
 
 	// Create a new GoDepFind instance
-	finder := godepfind.New(".")
+	finder := depfind.New(".")
 
 	// Enable test imports if needed
 	// finder.SetTestImports(true)

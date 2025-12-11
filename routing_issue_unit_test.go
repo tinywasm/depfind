@@ -1,4 +1,4 @@
-package godepfind_test
+package depfind
 
 import (
 	"os"
@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cdvelop/godepfind"
+	"github.com/tinywasm/depfind"
 )
 
 // TestGoHandlerRoutingIssue is a unit test that validates the file routing logic
@@ -28,7 +28,7 @@ import (
 // 5. CMD handler should claim cmdtool/cmd.go (because cmd/main.go imports cmdtool)
 // 6. CMD handler should NOT claim database/db.go or dom/dom.go (no import relationship)
 //
-// This test verifies that godepfind.ThisFileIsMine correctly determines file ownership
+// This test verifies that depfind.ThisFileIsMine correctly determines file ownership
 // based on import dependencies and build tags, ensuring each handler claims only its relevant files.
 func TestGoHandlerRoutingIssue(t *testing.T) {
 	// 1. Crear un directorio temporal que represente el proyecto
@@ -163,7 +163,7 @@ func Execute() {
 	var wasmCalls []string
 	var cmdCalls []string
 
-	// 7. Crear un handler de servidor simulado (como goserver.New)
+	// 7. Crear un handler de servidor simulado (como server.New)
 	serverHandler := &TestServerHandler{
 		mainPath: "pwa/main.server.go",
 		calls:    &serverCalls,
@@ -184,7 +184,7 @@ func Execute() {
 	}
 
 	// 10. Obtener el buscador de dependencias directamente
-	depFinder := godepfind.New(tmp)
+	depFinder := depfind.New(tmp)
 
 	// 10. Comprobar la lógica de enrutamiento: ¿qué handler reclama database/db.go?
 	t.Logf("Testing file ownership detection for database/db.go")
@@ -358,7 +358,7 @@ func DomFunc() {}
 	}
 }
 
-// TestServerHandler simulates goserver.ServerHandler for testing
+// TestServerHandler simulates server.ServerHandler for testing
 type TestServerHandler struct {
 	mainPath string
 	calls    *[]string
@@ -374,7 +374,7 @@ func (h *TestServerHandler) NewFileEvent(fileName, extension, filePath, event st
 	return nil
 }
 
-// TestWasmHandler simulates tinywasm.TinyWasm for testing
+// TestWasmHandler simulates client.TinyWasm for testing
 type TestWasmHandler struct {
 	webFilesRootRelative string // Simula Config.WebFilesRootRelative de TinyWasm
 	mainInputFile        string // Simula mainInputFile de TinyWasm ("main.wasm.go")
