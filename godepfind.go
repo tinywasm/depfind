@@ -541,7 +541,7 @@ func (g *GoDepFind) matchesHandlerFile(mainPkg, handlerFile string) bool {
 	if pkg, ok := g.packageCache[mainPkg]; ok && pkg != nil {
 		if relPkgDir, err := filepath.Rel(g.rootDir, pkg.Dir); err == nil {
 			relPkgDir = filepath.ToSlash(relPkgDir)
-			if relPkgDir == handlerDir || strings.HasSuffix(filepath.ToSlash(mainPkg), relPkgDir) {
+			if relPkgDir == handlerDir || strings.HasSuffix(filepath.ToSlash(mainPkg), handlerDir) {
 				return true
 			}
 		}

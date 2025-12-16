@@ -170,19 +170,6 @@ func (g *GoDepFind) removeReverseDep(target, dependent string) {
 	}
 }
 
-// invalidatePackageCacheOnly invalidates only packageCache, preserves dependencyGraph
-func (g *GoDepFind) invalidatePackageCacheOnly(filePath string) error {
-	// Find the package containing this file
-	pkg, err := g.findPackageContainingFileByPath(filePath)
-	if err != nil || pkg == "" {
-		return nil // File not found in any package, nothing to invalidate
-	}
-
-	// Only remove from packageCache, preserve dependencyGraph and reverseDeps
-	delete(g.packageCache, pkg)
-	return nil
-}
-
 // handleFileCreate handles file creation events
 func (g *GoDepFind) handleFileCreate(filePath string) error {
 	// filePath is now always required and contains full path
