@@ -1,4 +1,4 @@
-package depfind
+package depfind_test
 
 import (
 	"os"

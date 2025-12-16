@@ -108,12 +108,12 @@ func (g *GoDepFind) ThisFileIsMine(mainInputFileRelativePath, fileAbsPath, event
 	isHandlerMainFile := relativeFilePath == mainInputFileRelativePath
 
 	if isHandlerMainFile {
-		// 6. CRITICAL: If this is the handler's main file, update cache for dynamic dependencies
-		// This handles cases where main.go is modified to add/remove imports
-		if err := g.updateCacheForFileWithContext(fileAbsPath, event, mainInputFileRelativePath); err != nil {
-			return false, fmt.Errorf("cache update failed: %w", err)
-		}
 		return true, nil
+	}
+	// CRITICAL: Always update cache for the file to capture dynamic dependency changes
+	// We do this before ownership check to ensure the dependency graph is up-to-date
+	if err := g.updateCacheForFileWithContext(fileAbsPath, event, mainInputFileRelativePath); err != nil {
+		return false, fmt.Errorf("cache update failed: %w", err)
 	}
 
 	// 7. For non-main files, check package-based ownership (cache already initialized if needed)

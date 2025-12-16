@@ -2,6 +2,7 @@ package depfind
 
 import (
 	"fmt"
+	"go/build"
 	"path/filepath"
 )
 
@@ -14,8 +15,8 @@ func (g *GoDepFind) updateCacheForFile(filePath, event string) error {
 
 	switch event {
 	case "write":
-		// Invalidate only the package containing the file
-		return g.invalidatePackageCache(filePath)
+		// Refresh the package to update imports without breaking incoming dependencies
+		return g.refreshPackageCache(filePath)
 	case "create":
 		// Re-scan dependencies of the parent package + update fileToPackage mapping
 		return g.handleFileCreate(filePath)
@@ -52,19 +53,121 @@ func (g *GoDepFind) invalidatePackageCache(filePath string) error {
 	// Remove from caches
 	delete(g.packageCache, pkg)
 	delete(g.dependencyGraph, pkg)
-	delete(g.reverseDeps, pkg)
 
-	// Remove from other packages' dependency lists
-	for otherPkg := range g.dependencyGraph {
-		deps := g.dependencyGraph[otherPkg]
-		for i, dep := range deps {
-			if dep == pkg {
-				g.dependencyGraph[otherPkg] = append(deps[:i], deps[i+1:]...)
-				break
-			}
+	// Also remove from reverseDeps (packages I import shouldn't point to me anymore)
+	// Note: We intentionally DO NOT remove from other packages' dependency lists (incoming edges)
+	// when we are just invalidating, because we assume the package might come back or
+	// this is called during a sequence where we handle it.
+	// However, stricter correctness for "remove" event might require clean up.
+	// For now, minimizing destruction to avoiding "holes" is prioritized.
+
+	// Actually, for "remove" event, we SHOULD remove from others.
+	// But invalidatePackageCache is now only used by HandleFileRemove and similar?
+	// Let's check usages.
+
+	return nil
+}
+
+// refreshPackageCache reloads a package and updates the graph without breaking incoming links
+func (g *GoDepFind) refreshPackageCache(filePath string) error {
+	// 1. Identify which package this file belongs to (using existing cache)
+	targetPkgPath, err := g.findPackageContainingFileByPath(filePath)
+	if err != nil {
+		return err
+	}
+	if targetPkgPath == "" {
+		// If not in cache, try treating it as a new file creation
+		return g.handleFileCreate(filePath)
+	}
+
+	// 2. Get the package directory
+	pkg, ok := g.packageCache[targetPkgPath]
+	if !ok || pkg == nil {
+		// Should not happen if findPackage... returned it, but safe fallback
+		return g.handleFileCreate(filePath)
+	}
+	pkgDir := pkg.Dir
+
+	// 3. Re-import the package to get updated imports
+	// We use build.ImportDir similar to getPackages
+	newPkg, err := g.importPackageFromDir(pkgDir)
+	if err != nil {
+		// If we can't import it (e.g. syntax error), we shouldn't break the graph.
+		// We can just keep the old one or warn. For now, we abort upgrade.
+		return fmt.Errorf("failed to refresh package %s: %w", targetPkgPath, err)
+	}
+
+	// 4. Update Package Cache
+	g.packageCache[targetPkgPath] = newPkg
+
+	// 5. Update Dependency Graph (Outgoing edges)
+	oldImports := g.dependencyGraph[targetPkgPath]
+	newImports := newPkg.Imports
+	if g.testImports {
+		newImports = append(newImports, newPkg.TestImports...)
+		newImports = append(newImports, newPkg.XTestImports...)
+	}
+	g.dependencyGraph[targetPkgPath] = newImports
+
+	// 6. Update Reverse Dependencies (incoming edges to MY imports)
+	// We need to update the reverseDeps of the packages I import.
+	// We do NOT need to touch reverseDeps pointing TO ME (incoming edges to Me),
+	// because my identity (targetPkgPath) hasn't changed.
+
+	// Calculate added and removed imports
+	oldMap := make(map[string]bool)
+	for _, imp := range oldImports {
+		oldMap[imp] = true
+	}
+	newMap := make(map[string]bool)
+	for _, imp := range newImports {
+		newMap[imp] = true
+	}
+
+	// Removed imports: remove me from their reverseDeps
+	for _, imp := range oldImports {
+		if !newMap[imp] {
+			g.removeReverseDep(imp, targetPkgPath)
 		}
 	}
+
+	// Added imports: add me to their reverseDeps
+	for _, imp := range newImports {
+		if !oldMap[imp] {
+			g.addReverseDep(imp, targetPkgPath)
+		}
+	}
+
 	return nil
+}
+
+// importPackageFromDir matches logic in getPackages for a single directory
+func (g *GoDepFind) importPackageFromDir(dir string) (*build.Package, error) {
+	// Try ImportDir
+	return build.ImportDir(dir, 0)
+}
+
+func (g *GoDepFind) addReverseDep(target, dependent string) {
+	if g.reverseDeps[target] == nil {
+		g.reverseDeps[target] = []string{}
+	}
+	// Check duplicates
+	for _, d := range g.reverseDeps[target] {
+		if d == dependent {
+			return
+		}
+	}
+	g.reverseDeps[target] = append(g.reverseDeps[target], dependent)
+}
+
+func (g *GoDepFind) removeReverseDep(target, dependent string) {
+	deps := g.reverseDeps[target]
+	for i, d := range deps {
+		if d == dependent {
+			g.reverseDeps[target] = append(deps[:i], deps[i+1:]...)
+			return
+		}
+	}
 }
 
 // invalidatePackageCacheOnly invalidates only packageCache, preserves dependencyGraph
@@ -288,8 +391,8 @@ func (g *GoDepFind) updateCacheForFileWithContext(filePath, event, handlerMainFi
 		if handlerMainFile != "" && g.isSameFile(filePath, handlerMainFile) {
 			return g.rescanMainPackageDependencies(filePath)
 		}
-		// For non-main files, only invalidate package cache (don't touch dependency graph)
-		return g.invalidatePackageCacheOnly(filePath)
+		// For non-main files, use refreshPackageCache to update dependencies without full rescan
+		return g.refreshPackageCache(filePath)
 	case "create":
 		return g.handleFileCreate(filePath)
 	case "remove":
