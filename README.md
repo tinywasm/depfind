@@ -42,7 +42,11 @@ Find which packages import specified target packages.
 import "github.com/tinywasm/depfind"
 
 // Create a new finder instance for your project
+// Create a new finder instance for your project
 finder := godepfind.New("/path/to/your/go/project")
+
+// Or with multiple roots
+finder := godepfind.New("/path/to/project", "/path/to/external_module")
 
 // Optional: Include test imports in dependency analysis
 finder.SetTestImports(true)
@@ -145,9 +149,13 @@ Now your build system knows to only recompile the `server` and `worker` applicat
 
 ### Core Functions
 
-### `New(rootDir string) *GoDepFind`
+### `New(rootDirs ...string) *GoDepFind`
 Creates a new GoDepFind instance with intelligent caching.
-- `rootDir`: Path to the Go module root directory (where go.mod is located)
+- `rootDirs`: Variadic list of root directories to search for packages and dependencies.
+
+### `AddRoot(paths ...string)`
+Adds additional root directories to the finder dynamically.
+- `paths`: Variadic list of directory paths to add.
 
 ### `SetTestImports(enabled bool)`
 Enable/disable inclusion of test imports in dependency analysis.

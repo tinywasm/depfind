@@ -16,7 +16,7 @@ func (g *GoDepFind) DebugThisFileIsMine(mainInputFileRelativePath, fileAbsPath, 
 	log.WriteString(fmt.Sprintf("   - mainInputFileRelativePath: %s\n", mainInputFileRelativePath))
 	log.WriteString(fmt.Sprintf("   - fileAbsPath: %s\n", fileAbsPath))
 	log.WriteString(fmt.Sprintf("   - event: %s\n", event))
-	log.WriteString(fmt.Sprintf("   - rootDir: %s\n", g.rootDir))
+	log.WriteString(fmt.Sprintf("   - rootDirs: %v\n", g.rootDirs))
 
 	// Check cache state BEFORE initialization
 	log.WriteString("2) Cache state BEFORE initialization:\n")
@@ -51,7 +51,11 @@ func (g *GoDepFind) DebugThisFileIsMine(mainInputFileRelativePath, fileAbsPath, 
 	}
 
 	if !filepath.IsAbs(fileAbsPath) {
-		fileAbsPath = filepath.Join(g.rootDir, fileAbsPath)
+		baseDir := "."
+		if len(g.rootDirs) > 0 {
+			baseDir = g.rootDirs[0]
+		}
+		fileAbsPath = filepath.Join(baseDir, fileAbsPath)
 	}
 	absFilePath, err := filepath.Abs(fileAbsPath)
 	if err != nil {
@@ -77,7 +81,17 @@ func (g *GoDepFind) DebugThisFileIsMine(mainInputFileRelativePath, fileAbsPath, 
 		log.WriteString(fmt.Sprintf("   - fileName == handlerFileName: %v\n", fileName == handlerFileName))
 
 		if fileName == handlerFileName {
-			relativeFilePath := strings.TrimPrefix(fileAbsPath, g.rootDir+"/")
+			relativeFilePath := ""
+			for _, root := range g.rootDirs {
+				if strings.HasPrefix(fileAbsPath, root) {
+					relativeFilePath = strings.TrimPrefix(fileAbsPath, root+"/")
+					break
+				}
+			}
+			// Use first root if no match found (fallback)
+			if relativeFilePath == "" && len(g.rootDirs) > 0 {
+				relativeFilePath = strings.TrimPrefix(fileAbsPath, g.rootDirs[0]+"/")
+			}
 			log.WriteString(fmt.Sprintf("   - relativeFilePath: %s\n", relativeFilePath))
 			log.WriteString(fmt.Sprintf("   - relativeFilePath == handlerFile: %v\n", relativeFilePath == handlerFile))
 

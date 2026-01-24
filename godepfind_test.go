@@ -9,8 +9,11 @@ import (
 func TestNew(t *testing.T) {
 	// Test with empty rootDir
 	g1 := New("")
-	if !filepath.IsAbs(g1.rootDir) {
-		t.Errorf("Expected rootDir to be an absolute path, got %s", g1.rootDir)
+	if len(g1.rootDirs) == 0 {
+		t.Fatalf("Expected rootDirs to have at least one element")
+	}
+	if !filepath.IsAbs(g1.rootDirs[0]) {
+		t.Errorf("Expected rootDir to be an absolute path, got %s", g1.rootDirs[0])
 	}
 	if g1.testImports != false {
 		t.Errorf("Expected testImports to be false by default")
@@ -19,8 +22,11 @@ func TestNew(t *testing.T) {
 	// Test with specific rootDir (normalized to absolute)
 	g2 := New("/tmp")
 	absTmp, _ := filepath.Abs("/tmp")
-	if g2.rootDir != absTmp {
-		t.Errorf("Expected rootDir to be '%s', got %s", absTmp, g2.rootDir)
+	if len(g2.rootDirs) == 0 {
+		t.Fatalf("Expected rootDirs to have at least one element")
+	}
+	if g2.rootDirs[0] != absTmp {
+		t.Errorf("Expected rootDir to be '%s', got %s", absTmp, g2.rootDirs[0])
 	}
 }
 

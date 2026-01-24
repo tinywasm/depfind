@@ -10,7 +10,7 @@ import (
 )
 
 type GoDepFind struct {
-	rootDir     string
+	rootDirs    []string
 	testImports bool
 
 	// Cache fields
@@ -23,16 +23,10 @@ type GoDepFind struct {
 	mainPackages      []string
 }
 
-// New creates a new GoDepFind instance with the specified root directory
-func New(rootDir string) *GoDepFind {
-	if rootDir == "" {
-		rootDir = "."
-	}
-	if abs, err := filepath.Abs(rootDir); err == nil {
-		rootDir = abs
-	}
-	return &GoDepFind{
-		rootDir:           rootDir,
+// New creates a new GoDepFind instance with the specified root directories
+func New(rootDirs ...string) *GoDepFind {
+	finder := &GoDepFind{
+		rootDirs:          make([]string, 0, len(rootDirs)),
 		testImports:       false,
 		cachedModule:      false,
 		packageCache:      make(map[string]*build.Package),
@@ -41,6 +35,32 @@ func New(rootDir string) *GoDepFind {
 		filePathToPackage: make(map[string]string),
 		fileToPackages:    make(map[string][]string),
 		mainPackages:      []string{},
+	}
+	finder.AddRoot(rootDirs...)
+	return finder
+}
+
+// AddRoot adds new root directories to the finder
+func (g *GoDepFind) AddRoot(paths ...string) {
+	for _, path := range paths {
+		if path == "" {
+			path = "."
+		}
+		if abs, err := filepath.Abs(path); err == nil {
+			path = abs
+		}
+
+		// Check for duplicates
+		exists := false
+		for _, existing := range g.rootDirs {
+			if existing == path {
+				exists = true
+				break
+			}
+		}
+		if !exists {
+			g.rootDirs = append(g.rootDirs, path)
+		}
 	}
 }
 
@@ -75,7 +95,12 @@ func (g *GoDepFind) ThisFileIsMine(mainInputFileRelativePath, fileAbsPath, event
 
 	// 2. Normalize file path to absolute
 	if !filepath.IsAbs(fileAbsPath) {
-		fileAbsPath = filepath.Join(g.rootDir, fileAbsPath)
+		// Try to resolve relative to the first root dir if available, otherwise just Abs
+		baseDir := "."
+		if len(g.rootDirs) > 0 {
+			baseDir = g.rootDirs[0]
+		}
+		fileAbsPath = filepath.Join(baseDir, fileAbsPath)
 	}
 	absFilePath, err := filepath.Abs(fileAbsPath)
 	if err != nil {
@@ -86,7 +111,16 @@ func (g *GoDepFind) ThisFileIsMine(mainInputFileRelativePath, fileAbsPath, event
 	// 3. CRITICAL: Verify handler's main file exists
 	handlerMainAbsPath := mainInputFileRelativePath
 	if !filepath.IsAbs(handlerMainAbsPath) {
-		handlerMainAbsPath = filepath.Join(g.rootDir, mainInputFileRelativePath)
+		// Assuming handler path relative to one of the roots?
+		// For backward compatibility/simplicity regarding MainInputFileRelativePath,
+		// we might need to check against all roots or assume the first one.
+		// However, usually MainInputFileRelativePath is relative to the "App" root.
+		// Let's assume it's relative to the first registered root which is typically the AppRootDir.
+		baseDir := "."
+		if len(g.rootDirs) > 0 {
+			baseDir = g.rootDirs[0]
+		}
+		handlerMainAbsPath = filepath.Join(baseDir, mainInputFileRelativePath)
 	}
 	if _, err := os.Stat(handlerMainAbsPath); err != nil {
 		if os.IsNotExist(err) {
@@ -107,18 +141,31 @@ func (g *GoDepFind) ThisFileIsMine(mainInputFileRelativePath, fileAbsPath, event
 	}
 
 	// 5. Direct file comparison - is this the handler's own main file?
-	relativeFilePath := strings.TrimPrefix(fileAbsPath, g.rootDir+"/")
-	isHandlerMainFile := relativeFilePath == mainInputFileRelativePath
+	// We need to check relative paths against all roots
+	isHandlerMainFile := false
+	for _, root := range g.rootDirs {
+		relativeFilePath := strings.TrimPrefix(fileAbsPath, root+"/")
+		if relativeFilePath == mainInputFileRelativePath {
+			isHandlerMainFile = true
+			break
+		}
+	}
 
 	if isHandlerMainFile {
 		return true, nil
 	}
 
 	// 6. External dependency check
-	// If the file is outside our root directory, we assume it's part of an external
+	// If the file is outside our root directories, we assume it's part of an external
 	// local module (e.g. from a replace directive) and should be handled.
-	// We check if it's NOT a subpath of rootDir.
-	isSubpath := strings.HasPrefix(fileAbsPath, g.rootDir+string(filepath.Separator)) || fileAbsPath == g.rootDir
+	// We check if it's NOT a subpath of ANY rootDir.
+	isSubpath := false
+	for _, root := range g.rootDirs {
+		if strings.HasPrefix(fileAbsPath, root+string(filepath.Separator)) || fileAbsPath == root {
+			isSubpath = true
+			break
+		}
+	}
 	if !isSubpath {
 		return true, nil
 	}
@@ -188,8 +235,12 @@ func (g *GoDepFind) doesPackageBelongToHandler(targetPkg, mainInputFileRelativeP
 		for _, mainPkg := range g.mainPackages {
 			if mainPkg == targetPkg {
 				if pkg, exists := g.packageCache[mainPkg]; exists && pkg != nil {
-					if relPkgDir, err := filepath.Rel(g.rootDir, pkg.Dir); err == nil {
-						return filepath.Clean(relPkgDir) == filepath.Clean(handlerDir)
+					for _, root := range g.rootDirs {
+						if relPkgDir, err := filepath.Rel(root, pkg.Dir); err == nil {
+							if filepath.Clean(relPkgDir) == filepath.Clean(handlerDir) {
+								return true
+							}
+						}
 					}
 				}
 				// Fallback: compare package name with handler directory
@@ -213,7 +264,11 @@ func (g *GoDepFind) handlerFileImportsPackage(handlerFileRelativePath, targetPkg
 	// Build the absolute path to the handler file
 	handlerAbsPath := handlerFileRelativePath
 	if !filepath.IsAbs(handlerAbsPath) {
-		handlerAbsPath = filepath.Join(g.rootDir, handlerFileRelativePath)
+		baseDir := "."
+		if len(g.rootDirs) > 0 {
+			baseDir = g.rootDirs[0]
+		}
+		handlerAbsPath = filepath.Join(baseDir, handlerFileRelativePath)
 	}
 
 	// Parse the handler file to extract its imports
@@ -337,7 +392,23 @@ func (g *GoDepFind) SetTestImports(enabled bool) {
 // it can successfully list, only returning error if no packages are found at all
 func (g *GoDepFind) listPackages(path string) ([]string, error) {
 	cmd := exec.Command("go", "list", path)
-	cmd.Dir = g.rootDir
+	// Use the first root directory as the working directory for go list
+	// This might be imperfect if checking packages in secondary roots, but
+	// usually reasonable for "go list ./..." if that's what is being called.
+	// For specific paths, we might want to pick the most appropriate root.
+	cmd.Dir = "."
+	if len(g.rootDirs) > 0 {
+		cmd.Dir = g.rootDirs[0]
+		// Try to find if path belongs to a specific root to be more accurate
+		if filepath.IsAbs(path) {
+			for _, root := range g.rootDirs {
+				if strings.HasPrefix(path, root) {
+					cmd.Dir = root
+					break
+				}
+			}
+		}
+	}
 	// Don't redirect stderr to os.Stderr to avoid polluting logs with build constraint warnings
 	out, err := cmd.Output()
 
@@ -374,31 +445,47 @@ func (g *GoDepFind) getPackages(paths []string) (map[string]*build.Package, erro
 			if len(parts) >= 2 {
 				// Try to construct the relative path from the module root
 				relativePath := strings.Join(parts[1:], "/")
-				fullPath := filepath.Join(g.rootDir, relativePath)
 
-				// Check if this directory exists
-				if _, err := os.Stat(fullPath); err == nil {
-					pkg, err = build.ImportDir(fullPath, 0)
-					if err == nil {
-						packages[path] = pkg
-						continue
+				// Check against all roots
+				for _, root := range g.rootDirs {
+					fullPath := filepath.Join(root, relativePath)
+					// Check if this directory exists
+					if _, err := os.Stat(fullPath); err == nil {
+						pkg, err = build.ImportDir(fullPath, 0)
+						if err == nil {
+							packages[path] = pkg
+							break // Found it
+						}
 					}
+				}
+				if pkg != nil {
+					continue
 				}
 			}
 		}
 
-		// Fallback: try ImportDir with the full path as relative
-		fullPath := filepath.Join(g.rootDir, path)
-		if _, err := os.Stat(fullPath); err == nil {
-			pkg, err = build.ImportDir(fullPath, 0)
-			if err == nil {
-				packages[path] = pkg
-				continue
+		// Fallback: try ImportDir with the full path relative to all roots
+		for _, root := range g.rootDirs {
+			fullPath := filepath.Join(root, path)
+			if _, err := os.Stat(fullPath); err == nil {
+				pkg, err = build.ImportDir(fullPath, 0)
+				if err == nil {
+					packages[path] = pkg
+					break
+				}
 			}
 		}
+		if pkg != nil {
+			continue
+		}
 
-		// Last resort: try build.Import (for standard library packages)
-		pkg, err = build.Import(path, g.rootDir, 0)
+		// Last resort: try build.Import (for standard library packages or fully qualified imports)
+		// We use the first root as srcDir context
+		srcDir := "."
+		if len(g.rootDirs) > 0 {
+			srcDir = g.rootDirs[0]
+		}
+		pkg, err = build.Import(path, srcDir, 0)
 		if err != nil {
 			return nil, err
 		}
@@ -529,9 +616,12 @@ func (g *GoDepFind) matchesHandlerFile(mainPkg, handlerFile string) bool {
 	// Normalize handler directory relative to rootDir when possible
 	handlerDir := filepath.Dir(handlerFile)
 	if filepath.IsAbs(handlerFile) {
-		// Convert to relative from rootDir to compare with package paths
-		if rel, err := filepath.Rel(g.rootDir, handlerFile); err == nil {
-			handlerDir = filepath.Dir(rel)
+		// Convert to relative from any rootDir to compare with package paths
+		for _, root := range g.rootDirs {
+			if rel, err := filepath.Rel(root, handlerFile); err == nil && !strings.HasPrefix(rel, "..") {
+				handlerDir = filepath.Dir(rel)
+				break
+			}
 		}
 	}
 	handlerDir = filepath.ToSlash(handlerDir)
@@ -552,10 +642,12 @@ func (g *GoDepFind) matchesHandlerFile(mainPkg, handlerFile string) bool {
 	// 3) Fall back to packageCache lookup (if available) to compare actual
 	// package directory on disk with handlerDir.
 	if pkg, ok := g.packageCache[mainPkg]; ok && pkg != nil {
-		if relPkgDir, err := filepath.Rel(g.rootDir, pkg.Dir); err == nil {
-			relPkgDir = filepath.ToSlash(relPkgDir)
-			if relPkgDir == handlerDir || strings.HasSuffix(filepath.ToSlash(mainPkg), handlerDir) {
-				return true
+		for _, root := range g.rootDirs {
+			if relPkgDir, err := filepath.Rel(root, pkg.Dir); err == nil {
+				relPkgDir = filepath.ToSlash(relPkgDir)
+				if relPkgDir == handlerDir || strings.HasSuffix(filepath.ToSlash(mainPkg), handlerDir) {
+					return true
+				}
 			}
 		}
 	}

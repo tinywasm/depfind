@@ -62,13 +62,25 @@ func (g *GoDepFind) ValidateInputForProcessing(mainInputFileRelativePath, fileNa
 		// Resolve relative paths from the root directory
 		resolvedPath := filePath
 		if !filepath.IsAbs(filePath) {
-			// Check if filePath already starts with rootDir
-			if strings.HasPrefix(filePath, g.rootDir+"/") || filePath == g.rootDir {
-				// Path already includes rootDir, use as is
+			// Check if filePath already starts with any rootDir
+			isRooted := false
+			for _, root := range g.rootDirs {
+				if strings.HasPrefix(filePath, root+"/") || filePath == root {
+					isRooted = true
+					break
+				}
+			}
+
+			if isRooted {
+				// Path already includes a rootDir, use as is
 				resolvedPath = filePath
 			} else {
-				// Path doesn't include rootDir, join them
-				resolvedPath = filepath.Join(g.rootDir, filePath)
+				// Path doesn't include rootDir, join with the first one as default
+				baseDir := "."
+				if len(g.rootDirs) > 0 {
+					baseDir = g.rootDirs[0]
+				}
+				resolvedPath = filepath.Join(baseDir, filePath)
 			}
 		}
 

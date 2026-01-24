@@ -348,17 +348,23 @@ func (g *GoDepFind) isSameFile(filePath1, filePath2 string) bool {
 		return filePath1 == filePath2
 	}
 
-	// If one is relative, try to make it absolute relative to rootDir
+	// If one is relative, try to make it absolute relative to any rootDir
 	if !filepath.IsAbs(filePath2) {
-		abs2FromRoot, err := filepath.Abs(filepath.Join(g.rootDir, filePath2))
-		if err == nil {
-			abs2 = abs2FromRoot
+		for _, root := range g.rootDirs {
+			abs2FromRoot, err := filepath.Abs(filepath.Join(root, filePath2))
+			if err == nil && abs2FromRoot == abs1 {
+				abs2 = abs2FromRoot
+				break
+			}
 		}
 	}
 	if !filepath.IsAbs(filePath1) {
-		abs1FromRoot, err := filepath.Abs(filepath.Join(g.rootDir, filePath1))
-		if err == nil {
-			abs1 = abs1FromRoot
+		for _, root := range g.rootDirs {
+			abs1FromRoot, err := filepath.Abs(filepath.Join(root, filePath1))
+			if err == nil && abs1FromRoot == abs2 {
+				abs1 = abs1FromRoot
+				break
+			}
 		}
 	}
 

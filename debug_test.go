@@ -22,7 +22,7 @@ func TestDebugMatchesHandlerFile(t *testing.T) {
 
 	// If the caller provided a relative path, resolve it against rootDir first
 	if !filepath.IsAbs(fileAbsPath) {
-		fileAbsPath = filepath.Join(finder.rootDir, fileAbsPath)
+		fileAbsPath = filepath.Join(finder.rootDirs[0], fileAbsPath)
 	}
 	fmt.Printf("fileAbsPath after joining: %q\n", fileAbsPath)
 
@@ -45,7 +45,7 @@ func TestDebugMatchesHandlerFile(t *testing.T) {
 
 	if fileName == handlerFileName {
 		// Get the relative path from the project root
-		relativeFilePath := strings.TrimPrefix(fileAbsPath, finder.rootDir+"/")
+		relativeFilePath := strings.TrimPrefix(fileAbsPath, finder.rootDirs[0]+"/")
 		fmt.Printf("relativeFilePath: %q, handlerFile: %q\n", relativeFilePath, handlerFile)
 
 		if relativeFilePath == handlerFile {
