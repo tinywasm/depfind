@@ -28,6 +28,9 @@ func New(rootDir string) *GoDepFind {
 	if rootDir == "" {
 		rootDir = "."
 	}
+	if abs, err := filepath.Abs(rootDir); err == nil {
+		rootDir = abs
+	}
 	return &GoDepFind{
 		rootDir:           rootDir,
 		testImports:       false,
@@ -110,7 +113,17 @@ func (g *GoDepFind) ThisFileIsMine(mainInputFileRelativePath, fileAbsPath, event
 	if isHandlerMainFile {
 		return true, nil
 	}
-	// CRITICAL: Always update cache for the file to capture dynamic dependency changes
+
+	// 6. External dependency check
+	// If the file is outside our root directory, we assume it's part of an external
+	// local module (e.g. from a replace directive) and should be handled.
+	// We check if it's NOT a subpath of rootDir.
+	isSubpath := strings.HasPrefix(fileAbsPath, g.rootDir+string(filepath.Separator)) || fileAbsPath == g.rootDir
+	if !isSubpath {
+		return true, nil
+	}
+
+	// 7. CRITICAL: Always update cache for the file to capture dynamic dependency changes
 	// We do this before ownership check to ensure the dependency graph is up-to-date
 	if err := g.updateCacheForFileWithContext(fileAbsPath, event, mainInputFileRelativePath); err != nil {
 		return false, fmt.Errorf("cache update failed: %w", err)
