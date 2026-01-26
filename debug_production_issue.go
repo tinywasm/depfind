@@ -9,6 +9,9 @@ import (
 // DebugThisFileIsMine provides detailed debugging for production issues
 // with ThisFileIsMine returning unexpected results
 func (g *GoDepFind) DebugThisFileIsMine(mainInputFileRelativePath, fileAbsPath, event string) (bool, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
 	var log strings.Builder
 
 	log.WriteString("=== DEBUG ThisFileIsMine ===\n")
