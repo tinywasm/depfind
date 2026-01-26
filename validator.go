@@ -50,6 +50,12 @@ func NewGoFileValidator() *GoFileValidator {
 //   - shouldProcess=false, error=nil: Skip processing (file is being written, empty, etc.)
 //   - shouldProcess=false, error!=nil: Return error to caller (invalid handler, etc.)
 func (g *GoDepFind) ValidateInputForProcessing(mainInputFileRelativePath, fileName, filePath string) (bool, error) {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	return g.validateInputForProcessing(mainInputFileRelativePath, fileName, filePath)
+}
+
+func (g *GoDepFind) validateInputForProcessing(mainInputFileRelativePath, fileName, filePath string) (bool, error) {
 	// Validate handler's main file path is not empty
 	if mainInputFileRelativePath == "" {
 		return false, fmt.Errorf("handler main file path cannot be empty")

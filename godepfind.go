@@ -7,9 +7,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 type GoDepFind struct {
+	mu          sync.RWMutex
 	rootDirs    []string
 	testImports bool
 
@@ -42,6 +44,9 @@ func New(rootDirs ...string) *GoDepFind {
 
 // AddRoot adds new root directories to the finder
 func (g *GoDepFind) AddRoot(paths ...string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
 	for _, path := range paths {
 		if path == "" {
 			path = "."
@@ -85,6 +90,12 @@ func (g *GoDepFind) AddRoot(paths ...string) {
 //
 // Returns: (bool, error) — true when the handler should process the file.
 func (g *GoDepFind) ThisFileIsMine(mainInputFileRelativePath, fileAbsPath, event string) (bool, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.thisFileIsMine(mainInputFileRelativePath, fileAbsPath, event)
+}
+
+func (g *GoDepFind) thisFileIsMine(mainInputFileRelativePath, fileAbsPath, event string) (bool, error) {
 	// 1. Basic input validation
 	if fileAbsPath == "" {
 		return false, fmt.Errorf("fileAbsPath cannot be empty")
@@ -384,6 +395,9 @@ func extractImportPath(line string) string {
 
 // SetTestImports enables or disables inclusion of test imports
 func (g *GoDepFind) SetTestImports(enabled bool) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
 	g.testImports = enabled
 }
 
@@ -530,6 +544,12 @@ func (g *GoDepFind) imports(path string, packages map[string]*build.Package, any
 
 // FindReverseDeps finds packages in sourcePath that import any of the targetPaths
 func (g *GoDepFind) FindReverseDeps(sourcePath string, targetPaths []string) ([]string, error) {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	return g.findReverseDeps(sourcePath, targetPaths)
+}
+
+func (g *GoDepFind) findReverseDeps(sourcePath string, targetPaths []string) ([]string, error) {
 	// Build target map
 	targets := make(map[string]bool)
 	for _, targetPath := range targetPaths {
@@ -568,6 +588,12 @@ func (g *GoDepFind) FindReverseDeps(sourcePath string, targetPaths []string) ([]
 // fileName: the name of the file to check (e.g., "module3.go")
 // Returns: slice of main package paths that depend on this file
 func (g *GoDepFind) GoFileComesFromMain(fileName string) ([]string, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.goFileComesFromMain(fileName)
+}
+
+func (g *GoDepFind) goFileComesFromMain(fileName string) ([]string, error) {
 	// Ensure cache is initialized
 	if err := g.ensureCacheInitialized(); err != nil {
 		return nil, err
