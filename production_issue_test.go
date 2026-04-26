@@ -80,23 +80,23 @@ go 1.17
 	//    - archivo a verificar: helper.go en el mismo directorio
 	mainInputFileRelativePath := filepath.Join("test", "pwa", "main.server.go")
 
-	t.Logf("=== Reproduciendo problema de producción ===")
-	t.Logf("Finder rootDir: %s", tmp)
-	t.Logf("MainInputFileRelativePath: %s", mainInputFileRelativePath)
-	t.Logf("Archivo a verificar: %s", helperPath)
+	logf(t, "=== Reproduciendo problema de producción ===")
+	logf(t, "Finder rootDir: %s", tmp)
+	logf(t, "MainInputFileRelativePath: %s", mainInputFileRelativePath)
+	logf(t, "Archivo a verificar: %s", helperPath)
 
 	// 8) Usar el método de debug para obtener información detallada
-	t.Logf("=== ANTES de DebugThisFileIsMine ===")
-	t.Logf("finder.cachedModule: %v", finder.cachedModule)
+	logf(t, "=== ANTES de DebugThisFileIsMine ===")
+	logf(t, "finder.cachedModule: %v", finder.cachedModule)
 
 	isMine, err := finder.DebugThisFileIsMine(mainInputFileRelativePath, helperPath, "write")
 	if err != nil {
-		t.Logf("Error en DebugThisFileIsMine: %v", err)
+		logf(t, "Error en DebugThisFileIsMine: %v", err)
 	}
-	t.Logf("Resultado del debug: isMine=%v", isMine)
+	logf(t, "Resultado del debug: isMine=%v", isMine)
 
-	t.Logf("=== DESPUÉS de DebugThisFileIsMine ===")
-	t.Logf("finder.cachedModule: %v", finder.cachedModule)
+	logf(t, "=== DESPUÉS de DebugThisFileIsMine ===")
+	logf(t, "finder.cachedModule: %v", finder.cachedModule)
 
 	// 9) Probar con el método normal
 	isMineNormal, err := finder.ThisFileIsMine(mainInputFileRelativePath, helperPath, "write")
@@ -104,14 +104,14 @@ go 1.17
 		t.Fatalf("Error en ThisFileIsMine: %v", err)
 	}
 
-	t.Logf("Resultado final: isMine=%v", isMineNormal)
+	logf(t, "Resultado final: isMine=%v", isMineNormal)
 
 	// 10) El helper.go debería pertenecer al handler porque está en el mismo paquete main
 	if !isMineNormal {
 		t.Errorf("PROBLEMA REPRODUCIDO: helper.go debería pertenecer al handler de main.server.go pero retornó false")
 		t.Errorf("Esto explica por qué en producción ves 'isMine=false' cuando debería ser true")
 	} else {
-		t.Logf("SUCCESS: El problema no se reproduce en este test")
+		logf(t, "SUCCESS: El problema no se reproduce en este test")
 	}
 
 	// 11) Probar también con el propio main.server.go (debería ser true)
@@ -119,7 +119,7 @@ go 1.17
 	if err != nil {
 		t.Fatalf("Error verificando main.server.go: %v", err)
 	}
-	t.Logf("main.server.go pertenece a su propio handler: %v", isMainMine)
+	logf(t, "main.server.go pertenece a su propio handler: %v", isMainMine)
 
 	if !isMainMine {
 		t.Errorf("CRÍTICO: main.server.go no pertenece a su propio handler!")

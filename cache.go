@@ -37,7 +37,29 @@ func (g *GoDepFind) updateCacheForFile(filePath, event string) error {
 // ensureCacheInitialized initializes cache if not already done (lazy loading)
 func (g *GoDepFind) ensureCacheInitialized() error {
 	if !g.cachedModule {
-		return g.rebuildCache()
+		err := g.rebuildCache()
+		// Mark as initialized even if it fails to avoid constant retries on every event
+		g.cachedModule = true
+		if err != nil {
+			// Initialize empty maps to ensure lookups don't panic
+			if g.packageCache == nil {
+				g.packageCache = make(map[string]*build.Package)
+			}
+			if g.filePathToPackage == nil {
+				g.filePathToPackage = make(map[string]string)
+			}
+			if g.fileToPackages == nil {
+				g.fileToPackages = make(map[string][]string)
+			}
+			if g.dependencyGraph == nil {
+				g.dependencyGraph = make(map[string][]string)
+			}
+			if g.reverseDeps == nil {
+				g.reverseDeps = make(map[string][]string)
+			}
+			// Do not return the error - fallback mechanism will handle the absence of cache
+			return nil
+		}
 	}
 	return nil
 }
