@@ -33,7 +33,7 @@ func TestThisFileIsMine(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := finder.ThisFileIsMine(tt.mainInputFileRelativePath, tt.filePath, "write")
 			if err != nil {
-				t.Logf("Test %s: got error (may be expected in test environment): %v", tt.name, err)
+				logf(t, "Test %s: got error (may be expected in test environment): %v", tt.name, err)
 				return // Skip if cache initialization fails
 			}
 			if result != tt.expected {
@@ -96,7 +96,7 @@ func TestCacheInitialization(t *testing.T) {
 	// Test lazy initialization with real testproject
 	err := finder.ensureCacheInitialized()
 	if err != nil {
-		t.Logf("Cache initialization result: %v", err)
+		logf(t, "Cache initialization result: %v", err)
 	} else {
 		t.Log("Cache initialized successfully")
 
@@ -107,7 +107,7 @@ func TestCacheInitialization(t *testing.T) {
 		if len(finder.mainPackages) == 0 {
 			t.Error("Expected mainPackages to be populated (should find appAserver, appBcmd, appCwasm)")
 		} else {
-			t.Logf("Found main packages: %v", finder.mainPackages)
+			logf(t, "Found main packages: %v", finder.mainPackages)
 		}
 	}
 
@@ -124,16 +124,16 @@ func TestGoFileComesFromMainWithCache(t *testing.T) {
 	// Test with module1.go - should be used by appAserver and appBcmd
 	mains, err := finder.GoFileComesFromMain("module1.go")
 	if err != nil {
-		t.Logf("GoFileComesFromMain error: %v", err)
+		logf(t, "GoFileComesFromMain error: %v", err)
 		return // Skip if we can't analyze the testproject
 	}
 
-	t.Logf("Main packages that depend on module1.go: %v", mains)
+	logf(t, "Main packages that depend on module1.go: %v", mains)
 
 	// module1 is imported by appAserver and appBcmd, so should find both
 	expectedCount := 2
 	if len(mains) != expectedCount {
-		t.Logf("Expected %d main packages for module1.go, got %d: %v", expectedCount, len(mains), mains)
+		logf(t, "Expected %d main packages for module1.go, got %d: %v", expectedCount, len(mains), mains)
 	}
 
 	// Test with module3.go - should only be used by appCwasm
@@ -143,12 +143,12 @@ func TestGoFileComesFromMainWithCache(t *testing.T) {
 		return
 	}
 
-	t.Logf("Main packages that depend on module3.go: %v", mains2)
+	logf(t, "Main packages that depend on module3.go: %v", mains2)
 
 	// module3 is only imported by appCwasm
 	expectedCount2 := 1
 	if len(mains2) != expectedCount2 {
-		t.Logf("Expected %d main package for module3.go, got %d: %v", expectedCount2, len(mains2), mains2)
+		logf(t, "Expected %d main package for module3.go, got %d: %v", expectedCount2, len(mains2), mains2)
 	}
 
 	// Test with a non-existent file

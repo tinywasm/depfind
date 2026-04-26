@@ -198,8 +198,19 @@ func (g *GoDepFind) checkPackageBasedOwnership(mainInputFileRelativePath, fileAb
 	if err != nil {
 		return false, err
 	}
+
+	// Fallback: empty cache (go list failed), but file is under a rootDir
+	// where the handler also exists -> assume it belongs
 	if targetPkg == "" {
-		return false, nil // File not found in any package
+		for _, root := range g.rootDirs {
+			handlerMainAbs := filepath.Join(root, mainInputFileRelativePath)
+			if _, statErr := os.Stat(handlerMainAbs); statErr == nil {
+				if strings.HasPrefix(fileAbsPath, root+string(filepath.Separator)) {
+					return true, nil
+				}
+			}
+		}
+		return false, nil
 	}
 
 	// Check if target package should belong to this handler
@@ -705,44 +716,20 @@ func (g *GoDepFind) findMainPackages() ([]string, error) {
 
 // findPackageContainingFile finds which package contains the given file
 func (g *GoDepFind) findPackageContainingFile(fileName string) (string, error) {
-	allPaths, err := g.listPackages("./...")
-	if err != nil {
+	// Ensure cache is initialized
+	if err := g.ensureCacheInitialized(); err != nil {
 		return "", err
 	}
 
-	packages, err := g.getPackages(allPaths)
-	if err != nil {
-		return "", err
-	}
-
-	for path, pkg := range packages {
-		// Check GoFiles
-		for _, file := range pkg.GoFiles {
-			if filepath.Base(file) == fileName {
-				return path, nil
-			}
-		}
-		// Check TestGoFiles if testImports is enabled
-		if g.testImports {
-			for _, file := range pkg.TestGoFiles {
-				if filepath.Base(file) == fileName {
-					return path, nil
-				}
-			}
-			for _, file := range pkg.XTestGoFiles {
-				if filepath.Base(file) == fileName {
-					return path, nil
-				}
-			}
-		}
+	if packages := g.fileToPackages[fileName]; len(packages) > 0 {
+		return packages[0], nil
 	}
 
 	return "", nil // File not found in any package
 }
 
 // findPackageContainingFileByPath finds which package contains the given file path.
-// It first tries the cached package info (packageCache) and falls back to
-// scanning packages if cache is not available.
+// It uses the cached package info (packageCache).
 func (g *GoDepFind) findPackageContainingFileByPath(filePath string) (string, error) {
 	// Ensure cache is initialized
 	if err := g.ensureCacheInitialized(); err != nil {
@@ -754,66 +741,8 @@ func (g *GoDepFind) findPackageContainingFileByPath(filePath string) (string, er
 		return "", err
 	}
 
-	// Prefer cached lookup
-	if len(g.packageCache) > 0 {
-		for pkgPath, pkg := range g.packageCache {
-			if pkg == nil {
-				continue
-			}
-			for _, file := range pkg.GoFiles {
-				candidate := file
-				if !filepath.IsAbs(candidate) {
-					candidate = filepath.Join(pkg.Dir, file)
-				}
-				candAbs, err := filepath.Abs(candidate)
-				if err != nil {
-					continue
-				}
-				if candAbs == absPath {
-					return pkgPath, nil
-				}
-			}
-			if g.testImports {
-				for _, file := range pkg.TestGoFiles {
-					candidate := file
-					if !filepath.IsAbs(candidate) {
-						candidate = filepath.Join(pkg.Dir, file)
-					}
-					candAbs, err := filepath.Abs(candidate)
-					if err != nil {
-						continue
-					}
-					if candAbs == absPath {
-						return pkgPath, nil
-					}
-				}
-				for _, file := range pkg.XTestGoFiles {
-					candidate := file
-					if !filepath.IsAbs(candidate) {
-						candidate = filepath.Join(pkg.Dir, file)
-					}
-					candAbs, err := filepath.Abs(candidate)
-					if err != nil {
-						continue
-					}
-					if candAbs == absPath {
-						return pkgPath, nil
-					}
-				}
-			}
-		}
-	}
-
-	// Fallback: scan all packages
-	allPaths, err := g.listPackages("./...")
-	if err != nil {
-		return "", err
-	}
-	packages, err := g.getPackages(allPaths)
-	if err != nil {
-		return "", err
-	}
-	for path, pkg := range packages {
+	// Use cached lookup
+	for pkgPath, pkg := range g.packageCache {
 		if pkg == nil {
 			continue
 		}
@@ -827,7 +756,35 @@ func (g *GoDepFind) findPackageContainingFileByPath(filePath string) (string, er
 				continue
 			}
 			if candAbs == absPath {
-				return path, nil
+				return pkgPath, nil
+			}
+		}
+		if g.testImports {
+			for _, file := range pkg.TestGoFiles {
+				candidate := file
+				if !filepath.IsAbs(candidate) {
+					candidate = filepath.Join(pkg.Dir, file)
+				}
+				candAbs, err := filepath.Abs(candidate)
+				if err != nil {
+					continue
+				}
+				if candAbs == absPath {
+					return pkgPath, nil
+				}
+			}
+			for _, file := range pkg.XTestGoFiles {
+				candidate := file
+				if !filepath.IsAbs(candidate) {
+					candidate = filepath.Join(pkg.Dir, file)
+				}
+				candAbs, err := filepath.Abs(candidate)
+				if err != nil {
+					continue
+				}
+				if candAbs == absPath {
+					return pkgPath, nil
+				}
 			}
 		}
 	}

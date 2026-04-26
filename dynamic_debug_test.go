@@ -86,15 +86,15 @@ func Ping() {}
 	relMain := filepath.Join("appDserver", "main.go")
 
 	// Paso 1: main.go no debería reclamar db.go inicialmente
-	t.Logf("=== PASO 1: Checking initial state ===")
+	logf(t, "=== PASO 1: Checking initial state ===")
 	isMine, err := finder.ThisFileIsMine(relMain, dbPath, "create")
 	if err != nil {
 		t.Fatalf("initial check error: %v", err)
 	}
-	t.Logf("Initial db.go belongs to main: %v (expected: false)", isMine)
+	logf(t, "Initial db.go belongs to main: %v (expected: false)", isMine)
 
 	// Paso 2: Modificar main.go para agregar imports
-	t.Logf("=== PASO 2: Modifying main.go to add imports ===")
+	logf(t, "=== PASO 2: Modifying main.go to add imports ===")
 	mainWithImport := `package main
 
 import (
@@ -110,119 +110,119 @@ func main() {
 	}
 
 	// Paso 3: Llamar ThisFileIsMine con main.go para actualizar cache
-	t.Logf("=== PASO 3: Calling ThisFileIsMine on modified main.go ===")
+	logf(t, "=== PASO 3: Calling ThisFileIsMine on modified main.go ===")
 	isMine, err = finder.ThisFileIsMine(relMain, mainPath, "write")
 	if err != nil {
 		t.Fatalf("write main error: %v", err)
 	}
-	t.Logf("Modified main.go belongs to handler: %v (expected: true)", isMine)
+	logf(t, "Modified main.go belongs to handler: %v (expected: true)", isMine)
 
 	// Paso 4: Verificar estado del cache después de la actualización
-	t.Logf("=== PASO 4: Checking cache state ===")
+	logf(t, "=== PASO 4: Checking cache state ===")
 	mains, err := finder.GoFileComesFromMain("db.go")
 	if err != nil {
-		t.Logf("GoFileComesFromMain error: %v", err)
+		logf(t, "GoFileComesFromMain error: %v", err)
 	} else {
-		t.Logf("db.go comes from mains: %v", strings.Join(mains, ","))
+		logf(t, "db.go comes from mains: %v", strings.Join(mains, ","))
 	}
 
 	// Paso 5: Investigar qué paquete se detecta para db.go
-	t.Logf("=== PASO 5: Investigating package detection ===")
+	logf(t, "=== PASO 5: Investigating package detection ===")
 	targetPkg, err := finder.findPackageForFile(dbPath)
 	if err != nil {
-		t.Logf("findPackageForFile error: %v", err)
+		logf(t, "findPackageForFile error: %v", err)
 	} else {
-		t.Logf("db.go is detected as belonging to package: %s", targetPkg)
+		logf(t, "db.go is detected as belonging to package: %s", targetPkg)
 	}
 
 	// Verificar si ese paquete debería pertenecer al handler
 	if targetPkg != "" {
-		t.Logf("=== Debugging doesPackageBelongToHandler ===")
+		logf(t, "=== Debugging doesPackageBelongToHandler ===")
 
 		// Check if it's a main package
 		isMain := finder.isMainPackage(targetPkg)
-		t.Logf("Is %s a main package? %v", targetPkg, isMain)
+		logf(t, "Is %s a main package? %v", targetPkg, isMain)
 
 		// Check if handler file imports this package
-		t.Logf("=== Debugging parseFileImports ===")
+		logf(t, "=== Debugging parseFileImports ===")
 		handlerAbsPath := filepath.Join(tmp, relMain)
-		t.Logf("Handler absolute path: %s", handlerAbsPath)
+		logf(t, "Handler absolute path: %s", handlerAbsPath)
 
 		// Read the file content to see what's actually there
 		content, err := os.ReadFile(handlerAbsPath)
 		if err != nil {
-			t.Logf("Error reading handler file: %v", err)
+			logf(t, "Error reading handler file: %v", err)
 		} else {
-			t.Logf("Handler file content:\n%s", string(content))
+			logf(t, "Handler file content:\n%s", string(content))
 		}
 
 		// Call parseFileImports directly
 		imports, err := finder.parseFileImports(handlerAbsPath)
 		if err != nil {
-			t.Logf("parseFileImports error: %v", err)
+			logf(t, "parseFileImports error: %v", err)
 		} else {
-			t.Logf("Parsed imports: %v", imports)
+			logf(t, "Parsed imports: %v", imports)
 		}
 
 		// Debug line by line parsing
-		t.Logf("=== Manual line parsing debug ===")
+		logf(t, "=== Manual line parsing debug ===")
 		lines := strings.Split(string(content), "\n")
 		inImportBlock := false
 
 		for i, line := range lines {
 			originalLine := line
 			line = strings.TrimSpace(line)
-			t.Logf("Line %d: '%s' (trimmed: '%s')", i, originalLine, line)
+			logf(t, "Line %d: '%s' (trimmed: '%s')", i, originalLine, line)
 
 			// Single line import
 			if strings.HasPrefix(line, "import ") {
-				t.Logf("  -> Single line import detected")
+				logf(t, "  -> Single line import detected")
 				// Use the extractImportPath function to see what it returns
 				path := extractImportPathDebug(line)
-				t.Logf("  -> extractImportPath returned: '%s'", path)
+				logf(t, "  -> extractImportPath returned: '%s'", path)
 				continue
 			}
 
 			// Multi-line import block start
 			if line == "import (" {
-				t.Logf("  -> Import block start")
+				logf(t, "  -> Import block start")
 				inImportBlock = true
 				continue
 			}
 
 			// Multi-line import block end
 			if inImportBlock && line == ")" {
-				t.Logf("  -> Import block end")
+				logf(t, "  -> Import block end")
 				inImportBlock = false
 				continue
 			}
 
 			// Import inside block
 			if inImportBlock {
-				t.Logf("  -> Inside import block")
+				logf(t, "  -> Inside import block")
 				path := extractImportPathDebug(line)
-				t.Logf("  -> extractImportPath returned: '%s'", path)
+				logf(t, "  -> extractImportPath returned: '%s'", path)
 			}
 		}
 
 		importsPackage := finder.handlerFileImportsPackage(relMain, targetPkg)
-		t.Logf("Does %s import %s? %v", relMain, targetPkg, importsPackage)
+		logf(t, "Does %s import %s? %v", relMain, targetPkg, importsPackage)
 
 		belongs := finder.doesPackageBelongToHandler(targetPkg, relMain)
-		t.Logf("Package %s belongs to handler %s: %v", targetPkg, relMain, belongs)
+		logf(t, "Package %s belongs to handler %s: %v", targetPkg, relMain, belongs)
 	}
 
 	// Paso 6: Preguntar si db.go pertenece a main (este debería ser true ahora)
-	t.Logf("=== PASO 6: Final check - should db.go belong to main now? ===")
+	logf(t, "=== PASO 6: Final check - should db.go belong to main now? ===")
 	isMine, err = finder.ThisFileIsMine(relMain, dbPath, "write")
 	if err != nil {
 		t.Fatalf("final check error: %v", err)
 	}
-	t.Logf("Final db.go belongs to main: %v (expected: true)", isMine)
+	logf(t, "Final db.go belongs to main: %v (expected: true)", isMine)
 
 	if !isMine {
 		t.Errorf("FAILED: db.go should belong to main after import was added")
 	} else {
-		t.Logf("SUCCESS: db.go correctly belongs to main after import")
+		logf(t, "SUCCESS: db.go correctly belongs to main after import")
 	}
 }

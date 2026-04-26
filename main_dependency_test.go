@@ -86,32 +86,32 @@ func TestGoFileComesFromMain(t *testing.T) {
 			}
 
 			// Debug: let's see what we found
-			t.Logf("Testing %s: found mains: %v", tc.fileName, result)
+			logf(t, "Testing %s: found mains: %v", tc.fileName, result)
 
 			// Let's also debug what packages and mains were found
 			allPaths, _ := finder.listPackages("./...")
-			t.Logf("All packages found: %v", allPaths)
+			logf(t, "All packages found: %v", allPaths)
 
 			// Debug: Let's test getPackages directly
 			packages, err := finder.getPackages(allPaths)
 			if err != nil {
-				t.Logf("Error in getPackages: %v", err)
+				logf(t, "Error in getPackages: %v", err)
 			} else {
-				t.Logf("Packages loaded: %d", len(packages))
+				logf(t, "Packages loaded: %d", len(packages))
 				for path, pkg := range packages {
 					if pkg != nil {
-						t.Logf("Package %s: Name=%s, GoFiles=%v", path, pkg.Name, pkg.GoFiles)
+						logf(t, "Package %s: Name=%s, GoFiles=%v", path, pkg.Name, pkg.GoFiles)
 					} else {
-						t.Logf("Package %s: nil", path)
+						logf(t, "Package %s: nil", path)
 					}
 				}
 			}
 
 			mainPaths, _ := finder.findMainPackages()
-			t.Logf("Main packages found: %v", mainPaths)
+			logf(t, "Main packages found: %v", mainPaths)
 
 			filePkg, _ := finder.findPackageContainingFile(tc.fileName)
-			t.Logf("Package containing %s: %s", tc.fileName, filePkg)
+			logf(t, "Package containing %s: %s", tc.fileName, filePkg)
 
 			// Convert result to map for easier comparison
 			resultMap := make(map[string]bool)

@@ -46,18 +46,18 @@ func TestThisFileIsMineRealWorldScenario(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Logf("MainInputFileRelativePath: %s", tt.mainInputFileRelativePath)
-			t.Logf("File: %s, FilePath: %s", tt.fileName, tt.filePath)
+			logf(t, "MainInputFileRelativePath: %s", tt.mainInputFileRelativePath)
+			logf(t, "File: %s, FilePath: %s", tt.fileName, tt.filePath)
 
 			// Test the actual method that's failing
 			isMine, err := finder.ThisFileIsMine(tt.mainInputFileRelativePath, tt.filePath, "write")
 
 			if err != nil {
-				t.Logf("ThisFileIsMine error: %v", err)
+				logf(t, "ThisFileIsMine error: %v", err)
 				return // Skip on cache errors
 			}
 
-			t.Logf("Result: IsMine=%v (expected=%v)", isMine, tt.expectOwner)
+			logf(t, "Result: IsMine=%v (expected=%v)", isMine, tt.expectOwner)
 
 			if isMine != tt.expectOwner {
 				t.Errorf("FAILED: Expected=%v, got=%v", tt.expectOwner, isMine)
@@ -80,48 +80,48 @@ func TestRealWorldGoDevLogs(t *testing.T) {
 	// Simulate the filePath that would be passed to the method
 	filePath := "testproject/pwa/main.server.go"
 
-	t.Logf("=== Testing GoServer ===")
-	t.Logf("MainInputFileRelativePath: %s File: %s", goServerMainPath, fileName)
+	logf(t, "=== Testing GoServer ===")
+	logf(t, "MainInputFileRelativePath: %s File: %s", goServerMainPath, fileName)
 
 	isMine, err := finder.ThisFileIsMine(goServerMainPath, filePath, "write")
 	if err != nil {
-		t.Logf("Error: %v - Skipping due to cache issues", err)
+		logf(t, "Error: %v - Skipping due to cache issues", err)
 		t.Skip("Skipping due to cache initialization issues")
 		return
 	}
 
-	t.Logf("IsMine: %v", isMine)
+	logf(t, "IsMine: %v", isMine)
 	if !isMine {
 		t.Errorf("GoServer should own main.server.go file but returned false")
 	}
 
-	t.Logf("=== Testing TinyWasm ===")
-	t.Logf("MainInputFileRelativePath: %s File: %s", tinyWasmMainPath, fileName)
+	logf(t, "=== Testing TinyWasm ===")
+	logf(t, "MainInputFileRelativePath: %s File: %s", tinyWasmMainPath, fileName)
 
 	isMine, err = finder.ThisFileIsMine(tinyWasmMainPath, filePath, "write")
 	if err != nil {
-		t.Logf("Error: %v - Skipping due to cache issues", err)
+		logf(t, "Error: %v - Skipping due to cache issues", err)
 		return
 	}
 
-	t.Logf("IsMine: %v", isMine)
+	logf(t, "IsMine: %v", isMine)
 	if isMine {
 		t.Errorf("TinyWasm should NOT own main.server.go file but returned true")
 	}
 
 	// Additional test: TinyWasm should own main.wasm.go
-	t.Logf("=== Testing TinyWasm with its own file ===")
+	logf(t, "=== Testing TinyWasm with its own file ===")
 	wasmFileName := "main.wasm.go"
 	wasmFilePath := "testproject/pwa/main.wasm.go"
-	t.Logf("MainInputFileRelativePath: %s File: %s", tinyWasmMainPath, wasmFileName)
+	logf(t, "MainInputFileRelativePath: %s File: %s", tinyWasmMainPath, wasmFileName)
 
 	isMine, err = finder.ThisFileIsMine(tinyWasmMainPath, wasmFilePath, "write")
 	if err != nil {
-		t.Logf("Error: %v - Skipping due to cache issues", err)
+		logf(t, "Error: %v - Skipping due to cache issues", err)
 		return
 	}
 
-	t.Logf("IsMine: %v", isMine)
+	logf(t, "IsMine: %v", isMine)
 	if !isMine {
 		t.Errorf("TinyWasm should own main.wasm.go file but returned false")
 	}
